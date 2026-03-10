@@ -1,7 +1,7 @@
 yfinance
-pandas_ta
 requests
 Flask
+
 
 
 
