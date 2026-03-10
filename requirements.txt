@@ -2,4 +2,6 @@ yfinance
 pandas_ta
 requests
 pandas
+Flask
+
 
