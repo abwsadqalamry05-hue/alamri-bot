@@ -1,64 +1,51 @@
-import pandas as pd
-import pandas_ta as ta
+import yfinance as yf
 import requests
 import time
-import yfinance as yf
 from threading import Thread
 from flask import Flask
 
-# --- سيرفر وهمي للتشغيل المجاني ---
+# سيرفر وهمي للتشغيل المجاني
 app = Flask('')
 @app.route('/')
-def home():
-    return "الرادار يعمل بنجاح!"
+def home(): return "الرادار يعمل!"
 
-def run():
-    app.run(host='0.0.0.0', port=8080)
+def run(): app.run(host='0.0.0.0', port=8080)
 
-# --- بيانات التليجرام الخاصة بك ---
+# بياناتك الصحيحة من الصور
 TOKEN = "8654440174:AAEt-SWp-O2SmsrYJHvbcAM0pej7Rc9cq6I"
 CHAT_ID = "8159011396"
 
 def send_telegram(message):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-        requests.post(url, data=payload)
-    except Exception as e:
-        print(f"Error: {e}")
-
-symbol_display = "AUD/NZD OTC"
-symbol_data = "AUDNZD=X"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
+    except: pass
 
 def main_bot():
-    print(f"🚀 الرادار يعمل الآن على {symbol_display}...")
+    # رسالة ترحيبية فور التشغيل
+    print("🚀 الرادار انطلق...")
+    send_telegram("✅ *تم تشغيل الرادار بنجاح!* \nأنا الآن أراقب سوق AUD/NZD OTC وسأرسل لك أي إشارة فور حدوثها.")
+    
     while True:
         try:
-            ticker = yf.Ticker(symbol_data)
-            df = ticker.history(period="1d", interval="1m")
-            if df.empty:
-                time.sleep(10)
-                continue
-
-            bb = ta.bbands(df['Close'], length=20, std=2)
-            lower_band = bb['BBL_20_2.0']
-            
-            prev_low = df['Low'].iloc[-2]
-            prev_lower = lower_band.iloc[-2]
-            is_green = df['Close'].iloc[-1] > df['Open'].iloc[-1]
-            
-            if prev_low <= prev_lower and is_green:
-                msg = f"🟢 *إشارة صعود (ارتداد قاع)* \n\n📈 الزوج: {symbol_display} \n💰 السعر: {round(df['Close'].iloc[-1], 5)}"
-                send_telegram(msg)
-                time.sleep(60) 
+            data = yf.download("AUDNZD=X", period="1d", interval="1m", progress=False)
+            if not data.empty:
+                close = data['Close']
+                # حساب البولينجر يدويًا لتجنب أخطاء المكتبات الخارجية
+                ma = close.rolling(window=20).mean()
+                std = close.rolling(window=20).std()
+                lower_band = ma - (std * 2)
                 
-            time.sleep(10) 
-        except Exception as e:
-            time.sleep(20)
+                last_low = data['Low'].iloc[-2]
+                last_lower = lower_band.iloc[-2]
+                is_green = data['Close'].iloc[-1] > data['Open'].iloc[-1]
+
+                if last_low <= last_lower and is_green:
+                    send_telegram(f"🟢 *إشارة صعود AUD/NZD OTC* \nالسعر الحالي: {round(data['Close'].iloc[-1], 5)}")
+                    time.sleep(60)
+            time.sleep(15)
+        except: time.sleep(20)
 
 if __name__ == "__main__":
-    # تشغيل السيرفر في خيط منفصل
-    t = Thread(target=run)
-    t.start()
-    # تشغيل البوت الأساسي
+    Thread(target=run).start()
     main_bot()
