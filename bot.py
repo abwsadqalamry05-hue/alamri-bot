@@ -1,57 +1,50 @@
-import yfinance as yf
 import pandas as pd
+import pandas_ta as ta
 import requests
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
+import yfinance as yf
 
-# خادم وهمي لإبقاء الخدمة تعمل مجاناً على Render
-def run_dummy_server():
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Bot is Active")
-    server = HTTPServer(('0.0.0.0', 10000), Handler)
-    server.serve_forever()
-
-threading.Thread(target=run_dummy_server, daemon=True).start()
-
-# بيانات التليجرام الخاصة بك
-TOKEN = "8705625892:AAFlwIENBqlMvJ2nuRrwJ2GW_u2IFJlTz54"
+# --- بيانات التليجرام الخاصة بك ---
+TOKEN = "8654440174:AAEt-SWp-O2SmsrYJHvbcAM0pej7Rc9cq6I"
 CHAT_ID = "8159011396"
 
-def send_signal(msg):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={msg}"
-    try: requests.get(url)
-    except: pass
+def send_telegram(message):
+    try:
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        requests.post(url, data=payload)
+    except Exception as e:
+        print(f"Error: {e}")
 
-# رسالة اختبار فورية (ستصلك بمجرد الحفظ وتشغيل Render)
-send_signal("🚨 اختبار الربط: إذا وصلت هذه الرسالة فالبوت مربوط بجوالك بنجاح وبدأ العمل على فريم 1 دقيقة.")
+# الزوج المطلوب كما في صورتك
+symbol_display = "AUD/NZD OTC"
+symbol_data = "AUDNZD=X"
+
+print(f"🚀 الرادار يعمل الآن على {symbol_display}...")
 
 while True:
     try:
-        # تغيير الفريم إلى دقيقة واحدة (1m) وجلب بيانات آخر ساعة
-        df = yf.download(tickers="EURUSD=X", period="1h", interval="1m", progress=False)
+        # جلب البيانات
+        ticker = yf.Ticker(symbol_data)
+        df = ticker.history(period="1d", interval="1m")
+        if df.empty:
+            time.sleep(10)
+            continue
+
+        # حساب البولينجر
+        bb = ta.bbands(df['Close'], length=20, std=2)
+        lower_band = bb['BBL_20_2.0']
         
-        if not df.empty:
-            # إعداد مؤشرات سريعة جداً لفريم الدقيقة
-            df['SMA_Trend'] = df['Close'].rolling(window=50).mean() # ترند متوسط
-            df['SMA_Fast'] = df['Close'].rolling(window=5).mean()  # سريع جداً
-            df['SMA_Slow'] = df['Close'].rolling(window=10).mean() # بطيء نسبياً
-
-            last = df.iloc[-1]
-            prev = df.iloc[-2]
-
-            # شرط التقاط الترند الصاعد على فريم 1 دقيقة
-            if last['Close'] > last['SMA_Trend']:
-                if prev['SMA_Fast'] < prev['SMA_Slow'] and last['SMA_Fast'] > last['SMA_Slow']:
-                    price = round(float(last['Close']), 5)
-                    send_signal(f"📈 فرصة شراء سريعة (فريم 1د)!\n🌍 الزوج: EUR/USD\n💰 السعر: {price}")
-
-            print(f"🔄 مراقبة فريم الدقيقة.. السعر الحالي: {round(float(last['Close']), 5)}")
-
+        # الشروط المطابقة لصورتك
+        prev_low = df['Low'].iloc[-2]
+        prev_lower = lower_band.iloc[-2]
+        is_green = df['Close'].iloc[-1] > df['Open'].iloc[-1]
+        
+        if prev_low <= prev_lower and is_green:
+            msg = f"🟢 *إشارة صعود (ارتداد قاع)* \n\n📈 الزوج: {symbol_display} \n💰 السعر: {round(df['Close'].iloc[-1], 5)} \n⚠️ مطابقة لنموذج صفقتك!"
+            send_telegram(msg)
+            time.sleep(60) 
+            
+        time.sleep(10) 
     except Exception as e:
-        print(f"❌ خطأ: {e}")
-    
-    time.sleep(30) # فحص كل 30 ثانية لسرعة الاستجابة
+        time.sleep(20)
