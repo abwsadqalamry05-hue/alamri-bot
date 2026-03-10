@@ -1,6 +1,8 @@
+flask
 yfinance
 requests
-Flask
+gunicorn
+
 
 
 
